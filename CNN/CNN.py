@@ -1,3 +1,4 @@
+# 使用Pytorch实现CIFAR10数据集的分类
 import os
 import numpy as np
 import matplotlib.pyplot as plt
