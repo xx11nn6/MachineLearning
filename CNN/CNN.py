@@ -143,7 +143,7 @@ all_preds = []
 all_labels = []
 
 # 训练模型
-num_epochs = 20
+num_epochs = 5
 for epoch in range(num_epochs):
     train(model, device, trainloader, optimizer,
           criterion, epoch, train_acc_list)
