@@ -1,7 +1,7 @@
 # 数据集
-/CNN/cifar10/
-/Medical_Image_Denoising/dicoms/
-/Medical_Image_Denoising/dataset/
+/CNN/cifar10/*
+/Medical_Image_Denoising/dicoms/*
+/Medical_Image_Denoising/dataset/*
 
 
 # 文档

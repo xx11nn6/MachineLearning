@@ -1,11 +1,13 @@
 import numpy as np
 import matplotlib.pyplot as plt
+import os
 
+current_dir = os.getcwd()
+dose_dir=r'dataset\piglet_npy\fifty_dose_ct.npy'
+dir=os.path.join(current_dir, dose_dir)
 # 加载.npy文件
-images = np.load('all_normalized_images.npy')
+images = np.load(dir)
 
-# 确保读取的是灰度图，所以每个图片的维度应该是512x512
-assert images.shape == (850, 512, 512), "图片维度不正确"
 
 # 打印数据类型
 print("数据类型:", images.dtype)
