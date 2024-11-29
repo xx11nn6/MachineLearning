@@ -36,8 +36,8 @@ def pre_proccess(root_in, root_out):
 
     # 按切片厚度从小到大排序
     sorted_slices = sorted(slices, key=lambda x: x[1], reverse=True)
-    # 选取第21到第870张图像(剔除全黑或数据少的图像)
-    selected_slices = sorted_slices[20:870]
+    # 选取第101到第860张图像(剔除全黑或数据少的图像)
+    selected_slices = sorted_slices[100:860]
 
     # 逐个处理排序后的文件
     for filename, _ in tqdm(selected_slices):
@@ -56,7 +56,7 @@ def pre_proccess(root_in, root_out):
 def display_datasets(output_paths):
     # 随机显示10张图像
     print("Loading and displaying datasets...")
-    fig, axes = plt.subplots(2, 10, figsize=(20, 4))  # 2 行 10 列
+    fig, axes = plt.subplots(3, 5, figsize=(10, 6))  # 3 行 5 列
     flag = False
     for row, output_path in enumerate(output_paths):
         # 加载数据集
@@ -64,10 +64,10 @@ def display_datasets(output_paths):
         print(f"Loaded {output_path}, shape: {datasets.shape}")
         if flag == False:
             selected_indices = np.random.choice(
-                len(datasets), 10, replace=False)
+                len(datasets), 5, replace=False)
             flag = True
-        # 显示前 10 张图像
-        for col in range(10):
+        # 显示前 5 张图像
+        for col in range(5):
             ax = axes[row, col]
             ax.imshow(datasets[selected_indices[col]], cmap='gray')  # 灰度显示
             ax.axis('off')  # 不显示坐标轴
@@ -75,8 +75,10 @@ def display_datasets(output_paths):
         # 在每一行的开头添加标记
         if row == 0:
             axes[row, 0].set_title("Full Dose CT")
-        else:
+        elif row == 1:
             axes[row, 0].set_title("Quarter Dose CT")
+        else:
+            axes[row, 0].set_title("One Tenth Dose CT")
 
     plt.tight_layout()
     plt.show()
@@ -88,14 +90,16 @@ if __name__ == '__main__':
     # 输入目录
     input_dirs = [
         r'dataset\piglet\DICOM\PA0\ST0\SE4',  # FULL DOSE FBP
-        r'dataset\piglet\DICOM\PA0\ST0\SE14'  # 25 DOSE FBP
+        r'dataset\piglet\DICOM\PA0\ST0\SE14',  # 25 DOSE FBP
+        r'dataset\piglet\DICOM\PA0\ST0\SE19'  # 10 DOSE FBP
     ]
 
     # 输出目录
     out_dir = r'dataset\piglet_npy'
     if not os.path.exists(out_dir):
         os.makedirs(out_dir)  # 如果输出目录不存在则创建
-    output_names = ['full_dose_ct.npy', 'quarter_dose_ct.npy']
+    output_names = ['full_dose_ct.npy',
+                    'quarter_dose_ct.npy', 'onetenth_dose_ct.npy']
 
     output_paths = []
 
