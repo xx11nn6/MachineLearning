@@ -1,11 +1,11 @@
-import matplotlib.pyplot as plt
-from skimage.metrics import structural_similarity as ssim
-from skimage.metrics import peak_signal_noise_ratio as psnr
 import numpy as np
 import os
 import cv2
 import bm3d
 from datasets_image_display import zoom_with_psnr_ssim_general
+from tqdm import tqdm
+from skimage.metrics import structural_similarity as ssim
+from skimage.metrics import peak_signal_noise_ratio as psnr
 
 
 def NLM_opencv(img, h=10, neighbor=7, search=21):
@@ -21,70 +21,104 @@ def NLM_opencv(img, h=10, neighbor=7, search=21):
     return denoised.astype(np.float32) / 255.0
 
 
-def BM3D():
-    pass
+def process_mayo_data(saved_path, save_dir, algorithms=['nlm', 'bm3d']):
+    """
+    处理 Mayo 数据集中的 L506 患者数据。
+    参数：
+    - saved_path: Mayo 数据集保存的路径
+    - save_dir: 处理后数据的保存路径
+    """
+    # 获取 L506 患者的数据文件列表
+    input_files = sorted([f for f in os.listdir(
+        saved_path) if ('L506' in f) and ('_input.npy' in f)])
+    target_files = sorted([f for f in os.listdir(
+        saved_path) if ('L506' in f) and ('_target.npy' in f)])
+
+    # 初始化数组，保存处理后的数据
+    num_images = len(input_files)
+    full_dose = np.zeros((num_images, 512, 512), dtype=np.float16)
+    low_dose = np.zeros((num_images, 512, 512), dtype=np.float16)
+    # 根据选择的算法，初始化对应的数组
+    if 'nlm' in algorithms:
+        nlm_denoised = np.zeros((num_images, 512, 512), dtype=np.float16)
+    if 'bm3d' in algorithms:
+        bm3d_denoised = np.zeros((num_images, 512, 512), dtype=np.float16)
+
+    for i in tqdm(range(num_images)):
+        # 读取图像
+        input_img = np.load(os.path.join(
+            saved_path, input_files[i])).astype(np.float32)
+        target_img = np.load(os.path.join(
+            saved_path, target_files[i])).astype(np.float32)
+
+        if 'nlm' in algorithms:
+            # NLM 去噪
+            result_nlm = NLM_opencv(input_img, h=12)
+            nlm_denoised[i] = result_nlm.astype(np.float16)
+        if 'bm3d' in algorithms:
+            # BM3D 去噪
+            result_bm3d = bm3d.bm3d(input_img, sigma_psd=0.08,
+                                    stage_arg=bm3d.BM3DStages.HARD_THRESHOLDING).astype(np.float32)
+            bm3d_denoised[i] = result_bm3d.astype(np.float16)
+
+        # 保存图像
+        full_dose[i] = target_img.astype(np.float16)
+        low_dose[i] = input_img.astype(np.float16)
+
+    # 保存处理后的数据
+    np.save(os.path.join(save_dir, 'mayo_full_dose.npy'), full_dose)
+    np.save(os.path.join(save_dir, 'mayo_low_dose.npy'), low_dose)
+    if 'nlm' in algorithms:
+        np.save(os.path.join(save_dir, 'mayo_nlm_denoised.npy'), nlm_denoised)
+    if 'bm3d' in algorithms:
+        np.save(os.path.join(save_dir, 'mayo_bm3d_denoised.npy'), bm3d_denoised)
+    print(f"处理后的数据已保存至 {save_dir}")
+
+
+def process_piglet_data(data_dir, save_dir, algorithms=['nlm', 'bm3d']):
+    """
+    处理 Piglet 数据集。
+    参数：
+    - data_dir: Piglet 数据集的路径
+    - save_dir: 处理后数据的保存路径
+    """
+    # 加载数据集
+    full_dose = np.load(os.path.join(
+        data_dir, 'full_dose_ct.npy')).astype(np.float16)
+    low_dose = np.load(os.path.join(
+        data_dir, 'onetenth_dose_ct.npy')).astype(np.float16)
+
+    num_images = full_dose.shape[0]
+    # 根据选择的算法，初始化对应的数组
+    if 'nlm' in algorithms:
+        nlm_denoised = np.zeros((num_images, 512, 512), dtype=np.float16)
+    if 'bm3d' in algorithms:
+        bm3d_denoised = np.zeros((num_images, 512, 512), dtype=np.float16)
+
+    for i in tqdm(range(num_images)):
+        input_img = low_dose[i]
+
+        if 'nlm' in algorithms:
+            # NLM 去噪
+            result_nlm = NLM_opencv(input_img, h=12)
+            nlm_denoised[i] = result_nlm.astype(np.float16)
+        if 'bm3d' in algorithms:
+            # BM3D 去噪
+            result_bm3d = bm3d.bm3d(input_img, sigma_psd=0.08,
+                                    stage_arg=bm3d.BM3DStages.HARD_THRESHOLDING).astype(np.float32)
+            bm3d_denoised[i] = result_bm3d.astype(np.float16)
+
+    # 保存处理后的数据
+    np.save(os.path.join(save_dir, 'piglet_full_dose.npy'),
+            full_dose.astype(np.float16))
+    np.save(os.path.join(save_dir, 'piglet_low_dose.npy'),
+            low_dose.astype(np.float16))
+    if 'nlm' in algorithms:
+        np.save(os.path.join(save_dir, 'piglet_nlm_denoised.npy'), nlm_denoised)
+    if 'bm3d' in algorithms:
+        np.save(os.path.join(save_dir, 'piglet_bm3d_denoised.npy'), bm3d_denoised)
+    print(f"处理后的数据已保存至 {save_dir}")
 
 
 if __name__ == '__main__':
-    current_dir = os.getcwd()
-    # 数据集目录
-    in_dir = r'dataset\piglet_npy'
-    input_names = ['full_dose_ct.npy',
-                   'quarter_dose_ct.npy', 'onetenth_dose_ct.npy']
-    input_paths = []
-
-    # 遍历每个剂量目录
-    for input_name in input_names:
-        input_path = os.path.join(in_dir, input_name)
-        input_paths.append(input_path)
-
-    full_dose_datasets = np.load(input_paths[0])
-    quarter_dose_datasets = np.load(input_paths[1])
-    onetenth_dose_datasets = np.load(input_paths[2])
-
-    selected_indices = 319
-    # 获取图像
-    full_dose_img = full_dose_datasets[selected_indices]
-    quarter_dose_img = quarter_dose_datasets[selected_indices]
-    onetenth_dose_img = onetenth_dose_datasets[selected_indices]
-
-    # print(result[200][200])
-    # print(full_dose_img[200][200])
-    result_nlm = NLM_opencv(quarter_dose_img, h=12)
-    # bm3d
-    result_bm3d = bm3d.bm3d(quarter_dose_img, sigma_psd=0.08,
-                            stage_arg=bm3d.BM3DStages.HARD_THRESHOLDING)
-
-    # 将要输出的信息打包
-    result_psnr = [None, psnr(full_dose_img, quarter_dose_img), psnr(
-        full_dose_img, result_nlm), psnr(full_dose_img, result_bm3d)]
-    result_ssim = [None, ssim(full_dose_img, quarter_dose_img, data_range=1), ssim(
-        full_dose_img, result_nlm, data_range=1), ssim(full_dose_img, result_bm3d, data_range=1)]
-    result = [full_dose_img, quarter_dose_img, result_nlm, result_bm3d]
-
-    # 输出目录
-    output_dir = r'images\classical'
-    if not os.path.exists(output_dir):
-        os.makedirs(output_dir)  # 如果输出目录不存在则创建
-    # 输出文件名
-    output_names = [f'{selected_indices}_full',
-                    f'{selected_indices}_quarter', f'{selected_indices}_nlm', f'{selected_indices}_bm3d']
-    for i in range(4):
-        savedir = os.path.join(output_dir, output_names[i])
-        zoom_with_psnr_ssim_general(result[i], [200, 250], [
-                                    100, 150], result_psnr[i], result_ssim[i], savedir)
-
-    plt.figure()
-    plt.subplot(141)
-    plt.imshow(full_dose_img, cmap='gray')
-    plt.subplot(142)
-    plt.imshow(quarter_dose_img, cmap='gray')
-    plt.subplot(143)
-    plt.imshow(result_nlm, cmap='gray')
-    plt.subplot(144)
-    plt.imshow(result_bm3d, cmap='gray')
-    plt.show()
-    print(psnr(full_dose_img, quarter_dose_img), psnr(
-        full_dose_img, result_nlm), psnr(full_dose_img, result_bm3d))
-    print(ssim(full_dose_img, quarter_dose_img, data_range=1), ssim(
-        full_dose_img, result_nlm, data_range=1), ssim(full_dose_img, result_bm3d, data_range=1))
+    pass  # 此处不做任何操作，由 main.py 调用

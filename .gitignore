@@ -1,8 +1,10 @@
 # 数据集
 /CNN/cifar10/*
-/Medical_Image_Denoising/dicoms/*
+
 /Medical_Image_Denoising/dataset/*
 /Medical_Image_Denoising/RED-CNN/save/*
+/Medical_Image_Denoising/save/*
+/Medical_Image_Denoising/CycleGAN/save_model/
 
 # 文档
 *.txt

@@ -1,3 +1,4 @@
+from sklearn.preprocessing import MinMaxScaler
 from measure import compute_measure
 from networks import RED_CNN
 from prep import printProgressBar
@@ -88,23 +89,17 @@ class Solver(object):
         return mat
 
     def save_fig(self, x, y, pred, fig_name, original_result, pred_result):
-        # 保存网络的预测结果、输入图像和原始图像的对比图，图像中包含了 PSNR、SSIM 和 RMSE 指标。
-        x, y, pred = x.numpy(), y.numpy(), pred.numpy()
+        # x, y, pred 应该是 numpy 数组
         f, ax = plt.subplots(1, 3, figsize=(30, 10))
-        ax[0].imshow(x, cmap=plt.cm.gray,
-                     vmin=self.trunc_min, vmax=self.trunc_max)
+        ax[0].imshow(x, cmap=plt.cm.gray)
         ax[0].set_title('Quarter-dose', fontsize=30)
-        ax[0].set_xlabel("PSNR: {:.4f}\nSSIM: {:.4f}\nRMSE: {:.4f}".format(original_result[0],
-                                                                           original_result[1],
-                                                                           original_result[2]), fontsize=20)
-        ax[1].imshow(pred, cmap=plt.cm.gray,
-                     vmin=self.trunc_min, vmax=self.trunc_max)
+        ax[0].set_xlabel("PSNR: {:.4f}\nSSIM: {:.4f}\nRMSE: {:.4f}".format(
+            original_result[0], original_result[1], original_result[2]), fontsize=20)
+        ax[1].imshow(pred, cmap=plt.cm.gray)
         ax[1].set_title('Result', fontsize=30)
-        ax[1].set_xlabel("PSNR: {:.4f}\nSSIM: {:.4f}\nRMSE: {:.4f}".format(pred_result[0],
-                                                                           pred_result[1],
-                                                                           pred_result[2]), fontsize=20)
-        ax[2].imshow(y, cmap=plt.cm.gray,
-                     vmin=self.trunc_min, vmax=self.trunc_max)
+        ax[1].set_xlabel("PSNR: {:.4f}\nSSIM: {:.4f}\nRMSE: {:.4f}".format(
+            pred_result[0], pred_result[1], pred_result[2]), fontsize=20)
+        ax[2].imshow(y, cmap=plt.cm.gray)
         ax[2].set_title('Full-dose', fontsize=30)
 
         f.savefig(os.path.join(self.save_path, 'fig',
@@ -165,6 +160,8 @@ class Solver(object):
         ori_psnr_avg, ori_ssim_avg, ori_rmse_avg = 0, 0, 0
         pred_psnr_avg, pred_ssim_avg, pred_rmse_avg = 0, 0, 0
 
+        # 新增：用于存储去噪后的图像
+        denoised_images = []
         with torch.no_grad():
             for i, (x, y) in enumerate(self.data_loader):
                 shape_ = x.shape[-1]
@@ -174,17 +171,20 @@ class Solver(object):
                 pred = self.REDCNN(x)
 
                 # denormalize, truncate
-                x = self.trunc(self.denormalize_(
+                x_denorm = self.trunc(self.denormalize_(
                     x.view(shape_, shape_).cpu().detach()))
-                y = self.trunc(self.denormalize_(
+                y_denorm = self.trunc(self.denormalize_(
                     y.view(shape_, shape_).cpu().detach()))
-                pred = self.trunc(self.denormalize_(
+                pred_denorm = self.trunc(self.denormalize_(
                     pred.view(shape_, shape_).cpu().detach()))
+
+                # 存储处理后的图像，转换为 numpy 数组并添加到列表中
+                denoised_images.append(pred_denorm.numpy().astype(np.float32))
 
                 data_range = self.trunc_max - self.trunc_min
 
                 original_result, pred_result = compute_measure(
-                    x, y, pred, data_range)
+                    x_denorm, y_denorm, pred_denorm, data_range)
                 ori_psnr_avg += original_result[0]
                 ori_ssim_avg += original_result[1]
                 ori_rmse_avg += original_result[2]
@@ -194,20 +194,115 @@ class Solver(object):
 
                 # save result figure
                 if self.result_fig:
-                    self.save_fig(x, y, pred, i, original_result, pred_result)
+                    self.save_fig(x_denorm, y_denorm, pred_denorm,
+                                  i, original_result, pred_result)
 
                 printProgressBar(i, len(self.data_loader),
                                  prefix="Compute measurements ..",
                                  suffix='Complete', length=25)
             print('\n')
-            print('Original === \nPSNR avg: {:.4f} \nSSIM avg: {:.4f} \nRMSE avg: {:.4f}'.format(ori_psnr_avg/len(self.data_loader),
-                                                                                                 ori_ssim_avg /
-                                                                                                 len(
-                                                                                                     self.data_loader),
-                                                                                                 ori_rmse_avg/len(self.data_loader)))
+            print('Original === \nPSNR avg: {:.4f} \nSSIM avg: {:.4f} \nRMSE avg: {:.4f}'.format(
+                ori_psnr_avg / len(self.data_loader),
+                ori_ssim_avg / len(self.data_loader),
+                ori_rmse_avg / len(self.data_loader)))
             print('\n')
-            print('Predictions === \nPSNR avg: {:.4f} \nSSIM avg: {:.4f} \nRMSE avg: {:.4f}'.format(pred_psnr_avg/len(self.data_loader),
-                                                                                                    pred_ssim_avg /
-                                                                                                    len(
-                                                                                                        self.data_loader),
-                                                                                                    pred_rmse_avg/len(self.data_loader)))
+            print('Predictions === \nPSNR avg: {:.4f} \nSSIM avg: {:.4f} \nRMSE avg: {:.4f}'.format(
+                pred_psnr_avg / len(self.data_loader),
+                pred_ssim_avg / len(self.data_loader),
+                pred_rmse_avg / len(self.data_loader)))
+
+        # 保存处理后的图像
+        denoised_images = np.array(denoised_images)  # 形状为 (n, height, width)
+        scaler = MinMaxScaler(feature_range=(0, 1))
+        denoised_images = scaler.fit_transform(
+            # 归一化
+            denoised_images.reshape(-1, 1)).reshape(denoised_images.shape)
+        output_dir = '../save'
+        if not os.path.exists(output_dir):
+            os.makedirs(output_dir)
+
+        output_path = os.path.join(output_dir, 'red-cnn-denoised-mayo.npy')
+        np.save(output_path, denoised_images.astype(np.float16))
+        print(f'去噪后的图像已保存至 {output_path}')
+
+    def test_piglet(self):
+        # 加载模型
+        del self.REDCNN
+        self.REDCNN = RED_CNN().to(self.device)
+        self.load_model(self.test_iters)
+
+        # 评估指标初始化
+        ori_psnr_avg, ori_ssim_avg, ori_rmse_avg = 0, 0, 0
+        pred_psnr_avg, pred_ssim_avg, pred_rmse_avg = 0, 0, 0
+
+        # **新增：用于存储去噪后的图像**
+        denoised_images = []
+
+        with torch.no_grad():
+            for i, (x, y) in enumerate(self.data_loader):
+                x = x.float().to(self.device)  # x 的形状为 [batch_size, H, W]
+                y = y.float().to(self.device)
+
+                # 添加通道维度
+                x = x.unsqueeze(1)  # 形状变为 [batch_size, 1, H, W]
+                y = y.unsqueeze(1)
+
+                pred = self.REDCNN(x)
+
+                data_range = 1.0  # 数据范围为 0-1
+
+                # 将张量转换为 NumPy 数组
+                x_np = x.squeeze().cpu().numpy()
+                y_np = y.squeeze().cpu().numpy()
+                pred_np = pred.squeeze().cpu().numpy()
+
+                # **确保形状为 (512, 512)，并添加新的维度 (1, 512, 512)**
+                pred_np = pred_np.squeeze()  # 移除多余的维度，变为 (512, 512)
+                # 添加到列表中，保持形状为 (1, 512, 512)
+                denoised_images.append(pred_np[np.newaxis, ...])
+
+                # 调用 compute_measure 函数
+
+                original_result, pred_result = compute_measure(
+                    x_np, y_np, pred_np, data_range)
+                ori_psnr_avg += original_result[0]
+                ori_ssim_avg += original_result[1]
+                ori_rmse_avg += original_result[2]
+                pred_psnr_avg += pred_result[0]
+                pred_ssim_avg += pred_result[1]
+                pred_rmse_avg += pred_result[2]
+
+                # 保存结果图像
+                if self.result_fig:
+                    self.save_fig(x_np, y_np, pred_np, i,
+                                  original_result, pred_result)
+
+                printProgressBar(i + 1, len(self.data_loader),
+                                 prefix="Compute measurements ..",
+                                 suffix='Complete', length=25)
+            print('\n')
+            num = len(self.data_loader)
+            print('Original === \nPSNR avg: {:.4f} \nSSIM avg: {:.4f} \nRMSE avg: {:.4f}'.format(
+                ori_psnr_avg / num, ori_ssim_avg / num, ori_rmse_avg / num))
+            print('\n')
+            print('Predictions === \nPSNR avg: {:.4f} \nSSIM avg: {:.4f} \nRMSE avg: {:.4f}'.format(
+                pred_psnr_avg / num, pred_ssim_avg / num, pred_rmse_avg / num))
+
+            # **在测试结束后，保存处理后的所有图像**
+            denoised_images = np.concatenate(
+                # 形状为 (n, 512, 512)
+                denoised_images, axis=0).astype(np.float32)
+            scaler = MinMaxScaler(feature_range=(0, 1))
+            denoised_images = scaler.fit_transform(
+                # 归一化
+                denoised_images.reshape(-1, 1)).reshape(denoised_images.shape)
+            # 确保输出目录存在
+            output_dir = '../save'
+            if not os.path.exists(output_dir):
+                os.makedirs(output_dir)
+
+            # 保存为 .npy 文件
+            output_path = os.path.join(
+                output_dir, 'red-cnn-denoised-piglet.npy')
+            np.save(output_path, denoised_images.astype(np.float16))
+            print(f'去噪后的图像已保存至 {output_path}')

@@ -1,7 +1,7 @@
 import os
 import argparse
 from torch.backends import cudnn
-from loader import get_loader
+from loader import get_loader, get_loader_piglet
 from solver import Solver
 
 
@@ -18,32 +18,61 @@ def main(args):
             os.makedirs(fig_path)
             print('Create path : {}'.format(fig_path))
 
-    data_loader = get_loader(mode=args.mode,
-                             load_mode=args.load_mode,
-                             saved_path=args.saved_path,
-                             test_patient=args.test_patient,
-                             patch_n=(args.patch_n if args.mode ==
-                                      'train' else None),
-                             patch_size=(
-                                 args.patch_size if args.mode == 'train' else None),
-                             transform=args.transform,
-                             batch_size=(
-                                 args.batch_size if args.mode == 'train' else 1),
-                             num_workers=args.num_workers)
-
-    solver = Solver(args, data_loader)
     if args.mode == 'train':
-        solver.train()
+        if args.dataset == 'mayo':
+            # 使用 Mayo 数据集进行训练
+            data_loader = get_loader(mode='train',
+                                     load_mode=args.load_mode,
+                                     saved_path=args.path_data,
+                                     test_patient='L506',
+                                     patch_n=args.patch_n,
+                                     patch_size=args.patch_size,
+                                     transform=args.transform,
+                                     batch_size=args.batch_size,
+                                     num_workers=args.num_workers)
+            solver = Solver(args, data_loader)
+            solver.train()
+        else:
+            raise ValueError("训练模式下仅支持 'mayo' 数据集")
     elif args.mode == 'test':
-        solver.test()
+        if args.dataset == 'mayo':
+            # 使用 Mayo 数据集进行测试（L506 患者）
+            data_loader = get_loader(mode='test',
+                                     load_mode=args.load_mode,
+                                     saved_path=args.path_data,
+                                     test_patient='L506',
+                                     transform=args.transform,
+                                     batch_size=1,
+                                     num_workers=args.num_workers)
+            solver = Solver(args, data_loader)
+            solver.test()
+        elif args.dataset == 'piglet':
+            # 使用 Piglet 数据集进行测试
+            data_loader = get_loader_piglet(data_path=args.path_data,
+                                            batch_size=1,
+                                            num_workers=args.num_workers)
+            solver = Solver(args, data_loader)
+            solver.test_piglet()
+        else:
+            raise ValueError("不支持的数据集: {}".format(args.dataset))
+    else:
+        raise ValueError("不支持的模式: {}".format(args.mode))
 
 
 if __name__ == "__main__":
     # python main.py --mode=train --load_mode=0 --batch_size=16 --num_epochs=100 --lr=1e-5 --device='cuda' --num_workers=7
+    # python main.py --mode='test' --dataset='piglet' --path_data='../dataset/piglet_npy' --test_iters=33000
     parser = argparse.ArgumentParser()
 
     parser.add_argument('--mode', type=str, default='train')
     parser.add_argument('--load_mode', type=int, default=0)
+
+    # 在 argparse 部分添加新参数
+    parser.add_argument('--dataset', type=str, choices=['piglet', 'mayo'], default='mayo',
+                        help="选择数据集，取值为 'piglet' 或 'mayo'")
+    parser.add_argument('--path_data', type=str, default='../dataset/mayo_npy',
+                        help="数据集的路径")
+
     parser.add_argument('--data_path', type=str, default='../dataset/mayo')
     parser.add_argument('--saved_path', type=str,
                         default='../dataset/mayo_npy')

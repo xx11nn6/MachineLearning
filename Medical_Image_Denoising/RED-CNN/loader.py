@@ -4,6 +4,38 @@ import numpy as np
 from torch.utils.data import Dataset, DataLoader
 
 
+def load_custom_test_data(test_path):
+    data = np.load(test_path)
+    return data
+
+
+class PigletDataset(Dataset):
+    def __init__(self, data_path):
+        full_dose_path = os.path.join(data_path, 'full_dose_ct.npy')
+        quarter_dose_path = os.path.join(data_path, 'onetenth_dose_ct.npy')
+
+        self.full_dose_imgs = np.load(full_dose_path)  # np.float16 类型，范围 0-1
+        self.quarter_dose_imgs = np.load(
+            quarter_dose_path)  # np.float16 类型，范围 0-1
+
+        assert self.full_dose_imgs.shape == self.quarter_dose_imgs.shape, "全剂量和四分之一剂量的图像数量不相等"
+
+    def __len__(self):
+        return len(self.full_dose_imgs)
+
+    def __getitem__(self, idx):
+        input_img = self.quarter_dose_imgs[idx]
+        target_img = self.full_dose_imgs[idx]
+        return (input_img, target_img)
+
+
+def get_loader_piglet(data_path, batch_size=1, num_workers=0):
+    dataset_ = PigletDataset(data_path)
+    data_loader = DataLoader(dataset=dataset_, batch_size=batch_size,
+                             shuffle=False, num_workers=num_workers)
+    return data_loader
+
+
 class ct_dataset(Dataset):
     def __init__(self, mode, load_mode, saved_path, test_patient, patch_n=None, patch_size=None, transform=None):
         '''
@@ -27,21 +59,34 @@ class ct_dataset(Dataset):
         if mode == 'train':
             input_ = [f for f in input_path if test_patient not in f]
             target_ = [f for f in target_path if test_patient not in f]
-            if load_mode == 0:  # batch data load
-                self.input_ = input_
-                self.target_ = target_
-            else:  # all data load
-                self.input_ = [np.load(f) for f in input_]
-                self.target_ = [np.load(f) for f in target_]
-        else:  # mode =='test'
+        else:  # mode == 'test'
             input_ = [f for f in input_path if test_patient in f]
             target_ = [f for f in target_path if test_patient in f]
-            if load_mode == 0:
-                self.input_ = input_
-                self.target_ = target_
-            else:
-                self.input_ = [np.load(f) for f in input_]
-                self.target_ = [np.load(f) for f in target_]
+
+        if load_mode == 0:  # batch data load
+            self.input_ = input_
+            self.target_ = target_
+        else:  # all data load
+            self.input_ = [np.load(f) for f in input_]
+            self.target_ = [np.load(f) for f in target_]
+        # if mode == 'train':
+        #     input_ = [f for f in input_path if test_patient not in f]
+        #     target_ = [f for f in target_path if test_patient not in f]
+        #     if load_mode == 0:  # batch data load
+        #         self.input_ = input_
+        #         self.target_ = target_
+        #     else:  # all data load
+        #         self.input_ = [np.load(f) for f in input_]
+        #         self.target_ = [np.load(f) for f in target_]
+        # else:  # mode =='test'
+        #     input_ = [f for f in input_path if test_patient in f]
+        #     target_ = [f for f in target_path if test_patient in f]
+        #     if load_mode == 0:
+        #         self.input_ = input_
+        #         self.target_ = target_
+        #     else:
+        #         self.input_ = [np.load(f) for f in input_]
+        #         self.target_ = [np.load(f) for f in target_]
 
     def __len__(self):
         return len(self.target_)

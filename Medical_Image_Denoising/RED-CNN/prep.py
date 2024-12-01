@@ -34,7 +34,7 @@ def save_dataset(args):
 
 def load_scan(path):
     # referred from https://www.kaggle.com/gzuidhof/full-preprocessing-tutorial
-    slices = [pydicom.read_file(os.path.join(path, s))
+    slices = [pydicom.dcmread(os.path.join(path, s))
               for s in os.listdir(path)]
     slices.sort(key=lambda x: float(x.ImagePositionPatient[2]))
     try:
@@ -88,7 +88,7 @@ if __name__ == "__main__":
     parser.add_argument('--save_path', type=str, default='../dataset/mayo_npy')
 
     parser.add_argument('--test_patient', type=str, default='L506')
-    parser.add_argument('--mm', type=int, default=3)
+    parser.add_argument('--mm', type=int, default=1)
     parser.add_argument('--norm_range_min', type=float, default=-1024.0)
     parser.add_argument('--norm_range_max', type=float, default=3072.0)
 
