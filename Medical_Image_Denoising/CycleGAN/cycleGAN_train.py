@@ -92,25 +92,31 @@ class CT_Dataset(Dataset):
     def __init__(self, path, transform, dataset='mayo', is_train=True, shuffle=True):
         self.transform = transform
         self.dataset = dataset
+        self.is_train = is_train
 
         if dataset == 'piglet':
             # 读取piglet数据集
             self.full_dose = np.load(join(path, 'full_dose_ct.npy'))
-            self.quarter_dose = np.load(join(path, 'quarter_dose_ct.npy'))
+            self.low_dose = np.load(join(path, 'onetenth_dose_ct.npy'))
             self.num_images = len(self.full_dose)
 
         elif dataset == 'mayo':
             # 读取mayo数据集
-            self.file_list = []
-            for file in sorted(listdir(path)):
-                if file.endswith('_input.npy'):
-                    patient_id = file.split('_')[0]
-                    if (is_train and patient_id != 'L506') or (not is_train and patient_id == 'L506'):
-                        self.file_list.append(file[:-10])  # 去掉'_input.npy'
+            if is_train:
+                self.file_list = []
+                for file in sorted(listdir(path)):
+                    if file.endswith('_input.npy'):
+                        patient_id = file.split('_')[0]
+                        if (is_train and patient_id != 'L506') or (not is_train and patient_id == 'L506'):
+                            self.file_list.append(file[:-10])  # 去掉'_input.npy'
 
-            if shuffle:
-                random.seed(0)
-                random.shuffle(self.file_list)
+                if shuffle:
+                    random.seed(0)
+                    random.shuffle(self.file_list)
+
+            else:
+                self.full_dose = np.load(join(path, 'mayo_full_dose.npy'))
+                self.low_dose = np.load(join(path, 'mayo_low_dose.npy'))
 
             self.path = path
 
@@ -118,19 +124,27 @@ class CT_Dataset(Dataset):
         if self.dataset == 'piglet':
             return self.num_images
         else:
-            return len(self.file_list)
+            if self.is_train:
+                return len(self.file_list)
+            else:
+                return len(self.full_dose)
 
     def __getitem__(self, idx):
         if self.dataset == 'piglet':
             x_F = self.full_dose[idx]
-            x_Q = self.quarter_dose[idx]
+            x_Q = self.low_dose[idx]
             file_name = f'{idx}'
 
         else:  # mayo dataset
-            base_name = self.file_list[idx]
-            x_F = np.load(join(self.path, base_name + '_target.npy'))
-            x_Q = np.load(join(self.path, base_name + '_input.npy'))
-            file_name = base_name
+            if self.is_train:
+                base_name = self.file_list[idx]
+                x_F = np.load(join(self.path, base_name + '_target.npy'))
+                x_Q = np.load(join(self.path, base_name + '_input.npy'))
+                file_name = base_name
+            else:
+                x_F = self.full_dose[idx]
+                x_Q = self.low_dose[idx]
+                file_name = f'{idx}'
 
         # 确保数据类型为float32
         x_F = x_F.astype(np.float32)

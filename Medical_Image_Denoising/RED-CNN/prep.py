@@ -33,18 +33,27 @@ def save_dataset(args):
 
 
 def load_scan(path):
-    # referred from https://www.kaggle.com/gzuidhof/full-preprocessing-tutorial
-    slices = [pydicom.dcmread(os.path.join(path, s))
-              for s in os.listdir(path)]
+    slices = [pydicom.dcmread(os.path.join(path, s)) for s in os.listdir(path)]
     slices.sort(key=lambda x: float(x.ImagePositionPatient[2]))
     try:
         slice_thickness = np.abs(
             slices[0].ImagePositionPatient[2] - slices[1].ImagePositionPatient[2])
-    except:
-        slice_thickness = np.abs(
-            slices[0].SliceLocation - slices[1].SliceLocation)
+    except (IndexError, KeyError) as e:
+        try:
+            slice_thickness = np.abs(
+                slices[0].SliceLocation - slices[1].SliceLocation)
+        except (IndexError, KeyError) as e:
+            print(f"Error calculating slice thickness in {path}: {e}")
+            slice_thickness = 1.0  # Default slice thickness if cannot be determined
+
     for s in slices:
         s.SliceThickness = slice_thickness
+
+    # Verify sorting
+    for i in range(1, len(slices)):
+        if slices[i].ImagePositionPatient[2] < slices[i-1].ImagePositionPatient[2]:
+            print(f"Warning: Out of order slice at {i} in {path}")
+
     return slices
 
 

@@ -133,5 +133,5 @@ def get_loader(mode='train', load_mode=0,
     dataset_ = ct_dataset(mode, load_mode, saved_path,
                           test_patient, patch_n, patch_size, transform)
     data_loader = DataLoader(
-        dataset=dataset_, batch_size=batch_size, shuffle=True, num_workers=num_workers)
+        dataset=dataset_, batch_size=batch_size, shuffle=True if mode == 'train' else False, num_workers=num_workers)
     return data_loader

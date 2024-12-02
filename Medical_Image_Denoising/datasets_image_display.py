@@ -3,6 +3,7 @@ import matplotlib.patches as patches
 from matplotlib.patches import ConnectionPatch
 import numpy as np
 import os
+import matplotlib.image as mpimg
 
 
 def display_datasets(input_paths):
@@ -67,7 +68,7 @@ def zoom_with_psnr_ssim_general(img, zoom_x, zoom_y, psnr, ssim, output_dir):
 
     # 创建放大图
     zoom_ax = fig.add_axes(zoom_array)
-    zoom_ax.imshow(zoomed_region, cmap='gray')
+    zoom_ax.imshow(zoomed_region, cmap='gray', vmin=img.min(), vmax=img.max())
     # 设置放大图的边框，并增加线宽
     zoom_ax.spines['top'].set_color(color)
     zoom_ax.spines['top'].set_linewidth(linewidth)
@@ -93,6 +94,8 @@ def zoom_with_psnr_ssim_general(img, zoom_x, zoom_y, psnr, ssim, output_dir):
     plt.savefig(output_dir, transparent=True,
                 dpi=300, bbox_inches='tight')
     plt.close()
+    image = mpimg.imread(output_dir)
+    return image
 
 
 def zoom_with_psnr_ssim(input_paths, output_dir):

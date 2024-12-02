@@ -1,4 +1,3 @@
-from sklearn.preprocessing import MinMaxScaler
 from measure import compute_measure
 from networks import RED_CNN
 from prep import printProgressBar
@@ -162,6 +161,8 @@ class Solver(object):
 
         # 新增：用于存储去噪后的图像
         denoised_images = []
+        full_dose = []
+        low_dose = []
         with torch.no_grad():
             for i, (x, y) in enumerate(self.data_loader):
                 shape_ = x.shape[-1]
@@ -169,18 +170,18 @@ class Solver(object):
                 y = y.unsqueeze(0).float().to(self.device)
 
                 pred = self.REDCNN(x)
-
+                pred = pred.view(shape_, shape_).cpu().detach()
+                x = x.view(shape_, shape_).cpu().detach()
+                y = y.view(shape_, shape_).cpu().detach()
                 # denormalize, truncate
-                x_denorm = self.trunc(self.denormalize_(
-                    x.view(shape_, shape_).cpu().detach()))
-                y_denorm = self.trunc(self.denormalize_(
-                    y.view(shape_, shape_).cpu().detach()))
-                pred_denorm = self.trunc(self.denormalize_(
-                    pred.view(shape_, shape_).cpu().detach()))
+                x_denorm = self.trunc(self.denormalize_(x))
+                y_denorm = self.trunc(self.denormalize_(y))
+                pred_denorm = self.trunc(self.denormalize_(pred))
 
                 # 存储处理后的图像，转换为 numpy 数组并添加到列表中
-                denoised_images.append(pred_denorm.numpy().astype(np.float32))
-
+                denoised_images.append(pred.numpy().astype(np.float32))
+                full_dose.append(y.numpy().astype(np.float32))
+                low_dose.append(x.numpy().astype(np.float32))
                 data_range = self.trunc_max - self.trunc_min
 
                 original_result, pred_result = compute_measure(
@@ -193,9 +194,9 @@ class Solver(object):
                 pred_rmse_avg += pred_result[2]
 
                 # save result figure
-                if self.result_fig:
-                    self.save_fig(x_denorm, y_denorm, pred_denorm,
-                                  i, original_result, pred_result)
+                # if self.result_fig:
+                #     self.save_fig(x_denorm, y_denorm, pred_denorm,
+                #                   i, original_result, pred_result)
 
                 printProgressBar(i, len(self.data_loader),
                                  prefix="Compute measurements ..",
@@ -213,17 +214,21 @@ class Solver(object):
 
         # 保存处理后的图像
         denoised_images = np.array(denoised_images)  # 形状为 (n, height, width)
-        scaler = MinMaxScaler(feature_range=(0, 1))
-        denoised_images = scaler.fit_transform(
-            # 归一化
-            denoised_images.reshape(-1, 1)).reshape(denoised_images.shape)
+        full_dose = np.array(full_dose)
+        low_dose = np.array(low_dose)
+
         output_dir = '../save'
         if not os.path.exists(output_dir):
             os.makedirs(output_dir)
 
-        output_path = os.path.join(output_dir, 'red-cnn-denoised-mayo.npy')
-        np.save(output_path, denoised_images.astype(np.float16))
-        print(f'去噪后的图像已保存至 {output_path}')
+        np.save(os.path.join(output_dir, 'mayo_redcnn_denoised.npy'),
+                denoised_images.astype(np.float16))
+        np.save(os.path.join(output_dir, 'mayo_full_dose.npy'),
+                full_dose.astype(np.float16))
+        np.save(os.path.join(output_dir, 'mayo_low_dose.npy'),
+                low_dose.astype(np.float16))
+
+        print(f'去噪后的图像已保存至 {output_dir}')
 
     def test_piglet(self):
         # 加载模型
@@ -292,10 +297,6 @@ class Solver(object):
             denoised_images = np.concatenate(
                 # 形状为 (n, 512, 512)
                 denoised_images, axis=0).astype(np.float32)
-            scaler = MinMaxScaler(feature_range=(0, 1))
-            denoised_images = scaler.fit_transform(
-                # 归一化
-                denoised_images.reshape(-1, 1)).reshape(denoised_images.shape)
             # 确保输出目录存在
             output_dir = '../save'
             if not os.path.exists(output_dir):
@@ -303,6 +304,6 @@ class Solver(object):
 
             # 保存为 .npy 文件
             output_path = os.path.join(
-                output_dir, 'red-cnn-denoised-piglet.npy')
+                output_dir, 'piglet_redcnn_denoised.npy')
             np.save(output_path, denoised_images.astype(np.float16))
             print(f'去噪后的图像已保存至 {output_path}')
