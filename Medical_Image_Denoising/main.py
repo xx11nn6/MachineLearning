@@ -56,9 +56,8 @@ def main(args):
 
     elif args.function == 4:
         # 功能 4：显示整体测试效果
-        print(f"显示 {args.algorithm} 在 {args.dataset} 数据集上的测试效果...")
-        display_results(args.save_dir, dataset=args.dataset,
-                        algorithm=args.algorithm)
+        print(f"显示不同算法在 {args.dataset} 数据集上的测试效果...")
+        display_results(args.save_dir, dataset=args.dataset)
 
     elif args.function == 5:
         # 功能 5：显示并保存某一测试集中指定图像的局部放大、不同算法的对比图
@@ -131,7 +130,7 @@ if __name__ == '__main__':
     # 功能 4：显示整体测试效果图像
     # python main.py --function=4 --dataset=mayo --save_dir=./save
     # 功能 5：显示并保存某一测试集中指定图像的局部放大、不同算法的对比图
-    # python main.py --function=5 --dataset=mayo --save_dir=./save --index=10
+    # python main.py --function=5 --dataset=mayo --save_dir=./save --zoom_coords='200,250,200,250' --index=365
     parser = argparse.ArgumentParser()
     parser.add_argument('--function', type=int, choices=[1, 2, 3, 4, 5], required=True,
                         help="选择功能：1-使用 NLM 算法处理并保存图像，2-使用 BM3D 算法处理并保存图像，3-评估选定的文件，4-显示整体测试效果，5-显示并保存指定图像的局部放大和算法对比图")
